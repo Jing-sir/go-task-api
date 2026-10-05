@@ -1,0 +1,109 @@
+# GitHub Actions 配置。现在还没有远程仓库，这个文件只是放着备用——
+# 哪天把代码推到 GitHub，它会自动开始生效，不需要改动。
+#
+# 和本地 pre-push 钩子的分工：
+#   钩子    ——  在你这台机器上拦住明显的问题，快
+#   Actions ——  在一台全新的 Linux 机器上从零验证一遍，
+#               能发现「本机能过但别人跑不起来」的问题，
+#               比如依赖漏写进 go.mod、或者依赖了本机特有的环境
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    # 集成测试需要真实的 PostgreSQL 和 Redis。
+    # GitHub Actions 的 services 会在跑测试前拉起这两个容器，
+    # 这正是 Day 21-22 选「复用容器 + 独立测试库」而不是 sqlite 的原因——
+    # 那套设计到这里不用改一行测试代码就能直接用。
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: go_task_db
+          # 和本地 docker-compose 一致：允许空密码连接
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5433:5432
+        # 等数据库真的能接连接了再往下走，
+        # 否则测试会在数据库还没 ready 时就开始跑
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CGO_ENABLED: 0
+      # 集成测试读这些变量找数据库，默认值就是下面这些，写出来是为了明确
+      TEST_DB_HOST: localhost
+      TEST_DB_PORT: 5433
+      TEST_DB_USER: postgres
+      TEST_REDIS_ADDR: localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          # 从 go.mod 读版本，避免这里和 go.mod 写的版本不一致
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: 安装 swag
+        run: go install github.com/swaggo/swag/cmd/swag@v1.16.4
+
+      - name: 跑本地那套同一个检查脚本
+        # 故意复用 scripts/check.sh 而不是在这里重写一遍命令：
+        # 本地和 CI 跑的是同一份逻辑，不会出现「本地过了 CI 不过」这种分歧
+        run: ./scripts/check.sh
+
+      - name: 构建 Docker 镜像
+        # 只验证镜像能构建成功，不推送（还没有镜像仓库）
+        run: docker build -t go-task-api:ci ./backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: 安装依赖
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        working-directory: web
+        # 注意用 -p tsconfig.app.json：根 tsconfig.json 是个 "files": [] 的空壳，
+        # 直接跑 vue-tsc --noEmit 会检查 0 个文件、永远通过，是个假检查
+        run: npx vue-tsc -p tsconfig.app.json --noEmit
+
+      - name: 构建
+        working-directory: web
+        run: pnpm build

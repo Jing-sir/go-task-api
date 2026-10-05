@@ -1,0 +1,33 @@
+# ---- 密钥与本地配置 ----
+# .env 里有 JWT_SECRET 等真实密钥，绝不能进版本库。
+# 推上去之后即使删掉，仍留在提交历史里，等于永久泄漏。
+# 需要知道有哪些变量时看 .env.example。
+.env
+.env.local
+backend/.env
+web/.env
+web/.env.local
+
+# ---- 编译产物 ----
+server
+backend/server
+backend/*.test
+
+# ---- 测试与覆盖率产物 ----
+*.out
+coverage.html
+
+# ---- 用户上传的文件 ----
+# 运行时产生的业务数据，不是代码
+backend/uploads/
+
+# ---- 前端依赖与构建产物 ----
+web/node_modules
+web/dist
+web/*.tsbuildinfo
+web/.vite
+
+# ---- 操作系统与编辑器 ----
+.DS_Store
+.idea/
+*.swp

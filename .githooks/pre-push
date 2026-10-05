@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# push 之前自动跑检查，不通过就拦住。
+#
+# 这个文件放在仓库里（.githooks/），而不是 .git/hooks/ —— 后者不会被 git 跟踪，
+# 换台机器就丢了。配合下面这条配置让 git 来这里找钩子：
+#   git config core.hooksPath .githooks
+# 克隆仓库后执行一次即可，scripts/setup-hooks.sh 封装了这条命令。
+set -euo pipefail
+
+echo "pre-push：开始本地检查..."
+
+if ! ./scripts/check.sh; then
+  echo
+  echo "检查未通过，push 已取消。"
+  echo "修完再推。确实要跳过检查可以用：git push --no-verify"
+  exit 1
+fi
+
+echo "pre-push：检查通过，继续 push。"

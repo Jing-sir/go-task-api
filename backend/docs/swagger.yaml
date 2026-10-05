@@ -1,0 +1,504 @@
+basePath: /
+definitions:
+  go-task-api_internal_model.Task:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      status:
+        type: boolean
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  go-task-api_internal_model.User:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  go-task-api_internal_service.CreateTaskRequest:
+    properties:
+      description:
+        maxLength: 132
+        type: string
+      status:
+        type: boolean
+      title:
+        maxLength: 20
+        minLength: 2
+        type: string
+    required:
+    - title
+    type: object
+  go-task-api_internal_service.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        maxLength: 32
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  go-task-api_internal_service.UpdateTaskRequest:
+    properties:
+      description:
+        maxLength: 132
+        type: string
+      status:
+        type: boolean
+      title:
+        maxLength: 20
+        minLength: 2
+        type: string
+    required:
+    - title
+    type: object
+  internal_handler.AvatarResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        example: uploads/avatars/1_1759400000.png
+        type: string
+      message:
+        example: ok
+        type: string
+    type: object
+  internal_handler.EmptyResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        type: object
+      message:
+        example: ok
+        type: string
+    type: object
+  internal_handler.ErrorResponse:
+    properties:
+      code:
+        example: 400
+        type: integer
+      message:
+        example: 标题不能为空
+        type: string
+    type: object
+  internal_handler.LoginData:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        $ref: '#/definitions/go-task-api_internal_model.User'
+    type: object
+  internal_handler.LoginResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        $ref: '#/definitions/internal_handler.LoginData'
+      message:
+        example: ok
+        type: string
+    type: object
+  internal_handler.TaskListData:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/go-task-api_internal_model.Task'
+        type: array
+      page_no:
+        example: 1
+        type: integer
+      page_size:
+        example: 20
+        type: integer
+      total:
+        example: 25
+        type: integer
+    type: object
+  internal_handler.TaskListResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        $ref: '#/definitions/internal_handler.TaskListData'
+      message:
+        example: ok
+        type: string
+    type: object
+  internal_handler.TaskResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        $ref: '#/definitions/go-task-api_internal_model.Task'
+      message:
+        example: ok
+        type: string
+    type: object
+  internal_handler.UserResponse:
+    properties:
+      code:
+        example: 0
+        type: integer
+      data:
+        $ref: '#/definitions/go-task-api_internal_model.User'
+      message:
+        example: ok
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    任务管理服务。Gin + GORM + PostgreSQL + Redis + WebSocket。
+    除注册、登录、健康检查外，所有接口都需要 JWT 鉴权。
+  title: go-task-api
+  version: "1.0"
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 校验邮箱密码，成功返回 JWT token。后续请求把它放进 Authorization 头，格式 "Bearer {token}"
+      parameters:
+      - description: 邮箱和密码
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/go-task-api_internal_service.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.LoginResponse'
+        "400":
+          description: 参数校验失败
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 邮箱或密码错误
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      summary: 登录
+      tags:
+      - 认证
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 用邮箱和密码注册新用户。密码用 bcrypt 加密后入库，响应里不会返回密码字段
+      parameters:
+      - description: 邮箱和密码
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/go-task-api_internal_service.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.UserResponse'
+        "400":
+          description: 参数校验失败，或邮箱已注册
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      summary: 注册
+      tags:
+      - 认证
+  /api/v1/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传头像文件并更新用户记录。限制 2MB 以内，只接受 png / jpeg / jpg。返回的是服务器上的保存路径
+      parameters:
+      - description: 头像文件，2MB 以内，png/jpeg/jpg
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.AvatarResponse'
+        "400":
+          description: 文件超出大小，或类型不支持
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "404":
+          description: 没有选择文件
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 上传头像
+      tags:
+      - 用户
+  /api/v1/tasks:
+    get:
+      description: 分页查询当前登录用户的任务，按 id 倒序。只返回自己的数据
+      parameters:
+      - default: 1
+        description: 页码，从 1 开始，非法值回落为 1
+        in: query
+        name: pageNo
+        type: integer
+      - default: 20
+        description: 每页条数，1-100，非法值回落为 20
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.TaskListResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 任务列表
+      tags:
+      - 任务
+    post:
+      consumes:
+      - application/json
+      description: 创建一条属于当前登录用户的任务，创建成功后通过 WebSocket 推送 task.created 事件
+      parameters:
+      - description: 任务内容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/go-task-api_internal_service.CreateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.TaskResponse'
+        "400":
+          description: 参数校验失败
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建任务
+      tags:
+      - 任务
+  /api/v1/tasks/{id}:
+    delete:
+      description: 软删除一条自己的任务，成功后通过 WebSocket 推送 task.deleted 事件
+      parameters:
+      - description: 任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.EmptyResponse'
+        "400":
+          description: ID 非法
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "404":
+          description: 任务不存在，或不属于当前用户
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除任务
+      tags:
+      - 任务
+    get:
+      description: 查询一条自己的任务。别人的任务一律返回 404，不区分「不存在」和「不属于你」，避免泄漏 ID 是否有效
+      parameters:
+      - description: 任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.TaskResponse'
+        "400":
+          description: ID 非法
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "404":
+          description: 任务不存在，或不属于当前用户
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 任务详情
+      tags:
+      - 任务
+    put:
+      consumes:
+      - application/json
+      description: 全量更新一条自己的任务，成功后通过 WebSocket 推送 task.updated 事件
+      parameters:
+      - description: 任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 要更新的内容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/go-task-api_internal_service.UpdateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.TaskResponse'
+        "400":
+          description: 参数校验失败或 ID 非法
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "404":
+          description: 任务不存在，或不属于当前用户
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新任务
+      tags:
+      - 任务
+  /api/v1/userInfo:
+    get:
+      description: 用 token 里的用户 ID 查询。走 Cache Aside：先查 Redis，没命中再查数据库并回填缓存，缓存 10 分钟
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.UserResponse'
+        "401":
+          description: 未授权
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+        "404":
+          description: 用户不存在
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 当前用户信息
+      tags:
+      - 用户
+  /api/v1/ws:
+    get:
+      description: |-
+        升级成 WebSocket，接收属于当前用户的任务变更事件。
+        推送消息格式为 {"type":"task.created|task.updated|task.deleted","data":...}，
+        删除事件的 data 只有任务 ID。
+        token 只能走 query 参数，因为浏览器原生 WebSocket 不支持自定义请求头。
+      parameters:
+      - description: 登录拿到的 JWT token
+        in: query
+        name: token
+        required: true
+        type: string
+      responses:
+        "101":
+          description: 切换协议成功，连接已建立
+        "401":
+          description: token 缺失或无效
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      summary: WebSocket 连接
+      tags:
+      - 实时
+  /ping:
+    get:
+      description: 不查数据库、不需要鉴权，只确认进程活着、路由能通
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.EmptyResponse'
+      summary: 健康检查
+      tags:
+      - 系统
+securityDefinitions:
+  BearerAuth:
+    description: 先调 /auth/login 拿 token，再填入 "Bearer {token}"（Bearer 和 token 之间有一个空格）
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
