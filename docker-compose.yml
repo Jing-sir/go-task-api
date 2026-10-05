@@ -31,7 +31,9 @@ services:
       DB_PASSWORD: ""
       DB_NAME: go_task_db
       DB_SSLMODE: disable
-      JWT_SECRET: test-secret
+      # ${VAR:-默认值}：外部设了 JWT_SECRET 就用外部的，没设才用这个本地默认值。
+      # 以后真要部署时，在环境里设好 JWT_SECRET 即可，不用改这个文件。
+      JWT_SECRET: ${JWT_SECRET:-test-secret}
       JWT_EXPIRE_HOURS: 3
       SERVER_PORT: 8080
       REDIS_ADDR: redis:6379

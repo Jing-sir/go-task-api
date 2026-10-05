@@ -40,6 +40,13 @@ func main() {
 	slog.SetDefault(log)
 
 	cfg := config.Load()
+
+	// 配置有致命问题就别启动，免得带着坏配置跑起来、事后才发现
+	if err := cfg.Validate(); err != nil {
+		log.Error("配置校验失败", "error", err)
+		os.Exit(1)
+	}
+
 	common.InitJWT(cfg.JWTSecret, cfg.JWTExpireHours)
 
 	cache.NewRedisClient(cfg.RedisAddr)

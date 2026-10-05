@@ -46,6 +46,21 @@ func Load() Config {
 	return config
 }
 
+// Validate 校验配置是否可用，有问题返回说明原因的错误。
+//
+// 目前只查一件事：JWT_SECRET 不能为空。
+//
+// 为什么这条值得单独拦：密钥为空时服务照样能启动、接口也都通，
+// 但签出来的 token 全是无效的，表现为「一登录就莫名失效」，
+// 很难想到根源是 .env 没建（.env 不在版本库里，换机器或重新克隆时不会跟着来）。
+// 启动时一句话说清，比事后排查半天划算。
+func (c Config) Validate() error {
+	if c.JWTSecret == "" {
+		return fmt.Errorf("JWT_SECRET 为空，请复制 backend/.env.example 为 backend/.env 再填写")
+	}
+	return nil
+}
+
 func (c Config) DSN() string {
 	return fmt.Sprintf(
 		"host='%s' port='%s' user='%s' password='%s' dbname='%s' sslmode='%s'",
