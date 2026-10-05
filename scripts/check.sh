@@ -61,10 +61,21 @@ if [ -z "$SWAG" ]; then
 else
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
-  $SWAG init -g cmd/server/main.go -o "$tmpdir" --parseDependency --parseInternal >/dev/null 2>&1
-  # 只比对 swagger.json。docs.go 里带生成时间戳之类的噪音，不适合逐字节比。
+
+  # 把 swag 的输出存起来而不是丢掉：它失败时必须能看到原因，
+  # 否则这一步挂了只剩一个退出码，无从排查。
+  swaglog="$tmpdir/swag.log"
+  if ! "$SWAG" init -g cmd/server/main.go -o "$tmpdir" --parseDependency --parseInternal >"$swaglog" 2>&1; then
+    red "swag 生成文档失败（用的是 $SWAG）："
+    cat "$swaglog"
+    exit 1
+  fi
+
+  # 只比对 swagger.json。docs.go 里带版本号等噪音，不适合逐字节比。
   if ! diff -q "$tmpdir/swagger.json" docs/swagger.json >/dev/null 2>&1; then
-    red "Swagger 文档和代码不一致。执行下面这条重新生成并提交："
+    red "Swagger 文档和代码不一致。差异如下："
+    diff "$tmpdir/swagger.json" docs/swagger.json | head -40 || true
+    red "执行下面这条重新生成并提交："
     red "  cd backend && swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal"
     exit 1
   fi
@@ -80,6 +91,23 @@ if ! nc -z localhost 5433 >/dev/null 2>&1; then
 fi
 go test ./...
 green "  测试通过"
+
+# ---- 前端 ----
+cd ../web
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  red "▶ 前端检查：未安装 pnpm，跳过"
+else
+  step "前端类型检查"
+  # 必须带 -p tsconfig.app.json。根 tsconfig.json 是 "files": [] 的空壳，
+  # 直接跑 vue-tsc --noEmit 会检查 0 个文件、永远通过，是个假检查。
+  pnpm typecheck
+  green "  类型检查通过"
+
+  step "前端构建"
+  pnpm build >/dev/null
+  green "  构建通过"
+fi
 
 echo
 green "✅ 全部检查通过"

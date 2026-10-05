@@ -8,6 +8,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    // 不检查 node_modules 里第三方库的 .d.ts 文件。
+    // 这些报错来自依赖自己的版本不兼容（arco-design 2.58 / vue-i18n 11 对新版 Vue 和 TS），
+    // 不是本项目代码的问题，也不是本项目能修的。
+    // Vue 官方脚手架默认就开这个，不开会被 148 个无关报错淹掉真正的问题。
+    "skipLibCheck": true,
     "jsx": "preserve",
     "resolveJsonModule": true,
     "esModuleInterop": true,

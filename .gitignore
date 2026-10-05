@@ -9,9 +9,11 @@ web/.env
 web/.env.local
 
 # ---- 编译产物 ----
-server
-backend/server
-backend/*.test
+# 开头的斜杠把匹配锚定在仓库根目录。
+# 不带斜杠的 "server" 会匹配任意层级下任何叫 server 的文件或目录，
+# 包括 backend/cmd/server/ 这个源码目录 —— 踩过这个坑，别再写成那样。
+/backend/server
+/backend/*.test
 
 # ---- 测试与覆盖率产物 ----
 *.out
